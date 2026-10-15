@@ -34,7 +34,7 @@ class Adventure extends Phaser.Scene{
  makeUI(){this.hud=this.add.container(0,0).setScrollFactor(0).setDepth(1000);this.hud.add(this.add.rectangle(W/2,24,W,48,0x12352f,.94));this.hudText=this.add.text(14,10,'🍲  SPICE ISLES  |  Party: 0  |  Spice Seeds: 3',{fontFamily:'monospace',fontSize:'13px',color:'#fff2c7'}).setScrollFactor(0).setDepth(1001);this.hud.add(this.hudText);this.msgPanel=this.add.container(0,0).setScrollFactor(0).setDepth(1100);this.msgPanel.setVisible(false);this.toast=this.add.text(W/2,H-20,'',{fontFamily:'monospace',fontSize:'12px',color:'#fff',backgroundColor:'#153a32',padding:{x:10,y:7}}).setOrigin(.5).setScrollFactor(0).setDepth(1200);this.toast.setVisible(false);this.touchPad=this.add.container(0,0).setScrollFactor(0).setDepth(1050);this.makeTouchButton(55,H-56,'◀',()=>this.move(-1,0));this.makeTouchButton(118,H-56,'▶',()=>this.move(1,0));this.makeTouchButton(86,H-101,'▲',()=>this.move(0,-1));this.makeTouchButton(86,H-20,'▼',()=>this.move(0,1));this.makeTouchButton(W-68,H-55,'A',()=>this.interact(),0x9b7039);}
  makeTouchButton(x,y,label,fn,color=0x245448){let b=this.add.circle(x,y,22,color,.92).setStrokeStyle(2,0xc5d6a4).setScrollFactor(0).setDepth(1051).setInteractive();let t=this.add.text(x,y,label,{fontFamily:'monospace',fontSize:'18px',color:'#fff5d1'}).setOrigin(.5).setScrollFactor(0).setDepth(1052);b.on('pointerdown',()=>{fn();sfx(440)});this.touchPad.add([b,t]);}
  showIntro(){this.showPanel('WELCOME TO THE SPICE ISLES','The island’s food spirits are losing their flavour! Explore the trails, meet culinary mentors, answer kitchen challenges and befriend wild Spice Spirits.\n\nFind Chef Mira nearby. She has a companion for your journey.','Begin Adventure',()=>{this.mode='explore';this.closePanel();this.say('Tip: walk through tall grass to meet wild Spice Spirits. Press E beside people to talk.');});}
- keyDown(e){if(e.repeat)return;if(this.mode==='battle'){if(e.code==='Digit1')this.battleAction('move');if(e.code==='Digit2')this.battleAction('seed');if(e.code==='Digit3')this.battleAction('quiz');if(e.code==='Escape')this.closeBattle();return}if(this.mode==='panel'){if(e.code==='Enter'||e.code==='Space'||e.code==='KeyE'){if(this.panelAction)this.panelAction()}return}if(this.mode!=='explore')return;const keys={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};if(keys[e.code]){this.move(...keys[e.code]);return}if(e.code==='KeyE'||e.code==='Space'||e.code==='Enter')this.interact();}
+ keyDown(e){if(e.repeat)return;if(this.mode==='battle'){if(this.quizLayer)return;if(e.code==='Digit1')this.battleAction('move');if(e.code==='Digit2')this.battleAction('seed');if(e.code==='Digit3')this.battleAction('quiz');if(e.code==='Escape')this.closeBattle();return}if(this.mode==='panel'){if(e.code==='Enter'||e.code==='Space'||e.code==='KeyE'){if(this.panelAction)this.panelAction()}return}if(this.mode!=='explore')return;const keys={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};if(keys[e.code]){this.move(...keys[e.code]);return}if(e.code==='KeyE'||e.code==='Space'||e.code==='Enter')this.interact();}
  pointer(p){if(this.mode==='intro')return;if(this.mode==='panel')return;if(this.mode==='battle')return;const x=p.x,y=p.y;if(y>H-130)return;if(y<H*.35)this.move(0,-1);else if(y>H*.67)this.move(0,1);else if(x<W*.38)this.move(-1,0);else if(x>W*.62)this.move(1,0);else this.interact();}
  move(dx,dy){if(this.mode!=='explore'||this.moveLock)return;this.facing={x:dx,y:dy};const nx=this.playerTile.x+dx,ny=this.playerTile.y+dy;if(nx<1||ny<1||nx>=MW-1||ny>=MH-1)return;const kind=this.map[ny][nx];if(['water','tree','rock'].includes(kind))return;if(this.npcs.some(n=>n.x===nx&&n.y===ny)){this.playerTile={...this.playerTile};this.interact();return}this.moveLock=true;this.playerTile={x:nx,y:ny};this.steps++;this.tweens.add({targets:this.player,x:nx*T+16,y:ny*T+16,duration:100,ease:'Linear',onComplete:()=>{this.moveLock=false;this.checkGrass(nx,ny);this.updateHUD()}});if(this.steps%4===0)sfx(230,0.04);}
  checkGrass(x,y){if(this.map[y][x]==='grass'&&Math.random()<.14&&!this.questFlags.firstSpirit){this.startBattle(false);return}if(this.map[y][x]==='grass'&&Math.random()<.11)this.startBattle(false);}
@@ -43,13 +43,89 @@ class Adventure extends Phaser.Scene{
  else if(n.id==='mentor'){this.showPanel('CULINARY GUILD','The Guild tests both your heart and your culinary knowledge. Win a Spirit encounter, then answer a kitchen question during battle to earn Guild Marks.\n\nGuild Marks: '+this.badges+' / 3','Challenge a wild spirit',()=>{this.closePanel();this.startBattle(true)});}
  else if(n.id==='ranger'){this.showPanel('RANGER NASI','Here, Spice Seeds help you befriend wild spirits. A spirit is easier to befriend when its energy is low.\n\nYou have '+this.bag+' Spice Seeds. I’ll give you one more!','Thanks!',()=>{this.bag++;this.updateHUD();this.closePanel();this.say('Received 1 Spice Seed!');});}}
  chooseStarter(i){this.party=[{...SPIRITS[i],hpNow:SPIRITS[i].hp,level:5,xp:0}];this.questFlags.starter=true;this.questFlags.firstSpirit=true;this.closePanel();this.updateHUD();this.showPanel('A NEW COMPANION!','You and '+this.party[0].name+' set off together. Explore the island, meet the mentors and learn the secrets of the kitchen.','Let’s go!',()=>{this.closePanel();this.say(this.party[0].emoji+' '+this.party[0].name+' joined your party!');});sfx(880);}
- startBattle(guild){if(this.mode!=='explore'||!this.party.length){if(!this.party.length)this.say('Find Chef Mira and choose a starter companion first.');return}this.mode='battle';this.moveLock=true;const base=SPIRITS[Phaser.Math.Between(0,SPIRITS.length-1)];this.wild={...base,hpNow:base.hp,level:Phaser.Math.Between(2,4)};this.guildBattle=guild;this.battlePanel=this.add.container(0,0).setScrollFactor(0).setDepth(2000);this.battlePanel.add(this.add.rectangle(W/2,H/2,W,H,0x0b211e,.96));this.battlePanel.add(this.add.rectangle(W/2,90,330,95,0x244f40).setStrokeStyle(2,0x9dbb86));this.battlePanel.add(this.add.text(80,45,'WILD '+this.wild.name.toUpperCase()+'  Lv.'+this.wild.level,{fontFamily:'monospace',fontSize:'15px',color:'#fff2c7'}));this.battlePanel.add(this.add.text(115,80,'HP  '+this.wild.hpNow+' / '+this.wild.hp,{fontFamily:'monospace',fontSize:'13px',color:'#b9f39b'}));this.battlePanel.add(this.add.text(580,270,this.wild.emoji,{fontSize:'100px'}).setOrigin(.5));this.battlePanel.add(this.add.text(220,320,this.party[0].emoji,{fontSize:'86px'}).setOrigin(.5));this.battlePanel.add(this.add.rectangle(210,375,300,72,0x21463d).setStrokeStyle(2,0x9dbb86));this.battlePanel.add(this.add.text(75,352,this.party[0].name+'  Lv.'+this.party[0].level,{fontFamily:'monospace',fontSize:'15px',color:'#fff2c7'}));this.battlePanel.add(this.add.text(75,382,'HP  '+this.party[0].hpNow+' / '+this.party[0].hp,{fontFamily:'monospace',fontSize:'13px',color:'#b9f39b'}));this.battlePanel.add(this.add.rectangle(W/2,480,750,126,0x183b33).setStrokeStyle(2,0x638c70));this.battlePanel.add(this.add.text(40,425,guild?'GUILD TRIAL: Show your culinary knowledge!':'A wild Spice Spirit appeared!',{fontFamily:'monospace',fontSize:'14px',color:'#fff2c7'}));this.addBattleButton(150,475,'1  SPIRIT MOVE',()=>this.battleAction('move'));this.addBattleButton(365,475,'2  SPICE SEED ('+this.bag+')',()=>this.battleAction('seed'));this.addBattleButton(585,475,'3  CULINARY QUIZ',()=>this.battleAction('quiz'));this.battleText=this.add.text(40,535,'Choose an action.',{fontFamily:'monospace',fontSize:'12px',color:'#c7dec1'}).setDepth(2002);sfx(520);}
- addBattleButton(x,y,label,fn){const r=this.add.rectangle(x,y,190,42,0x386b53).setStrokeStyle(2,0xc4dba1).setInteractive({useHandCursor:true}).setScrollFactor(0).setDepth(2001);const t=this.add.text(x,y,label,{fontFamily:'monospace',fontSize:'11px',color:'#fff5d5',align:'center'}).setOrigin(.5).setScrollFactor(0).setDepth(2002);r.on('pointerdown',fn);this.battlePanel.add([r,t]);}
- battleAction(kind){if(this.mode!=='battle'||this.battleBusy)return;if(kind==='quiz'){this.battleQuiz();return}if(kind==='seed'){if(this.bag<=0){this.battleText.setText('No Spice Seeds left!');return}this.bag--;const chance=this.wild.hpNow<=this.wild.hp*.35?.82:.35;if(Math.random()<chance){this.party.push({...this.wild,hpNow:this.wild.hp,level:this.wild.level,xp:0});this.battleText.setText('Befriended '+this.wild.name+'! It joined your party.');this.updateHUD();this.time.delayedCall(1100,()=>this.endBattle(true));}else{this.battleText.setText(this.wild.name+' escaped the Spice Seed!');this.enemyTurn()}return}const dmg=Phaser.Math.Between(7,12)+this.party[0].level;this.wild.hpNow=Math.max(0,this.wild.hpNow-dmg);this.battleText.setText(this.party[0].move+'! '+this.wild.name+' lost '+dmg+' HP.');this.refreshBattleHP();sfx(760);if(this.wild.hpNow<=0){this.party[0].xp+=10;if(this.party[0].xp>=20){this.party[0].level++;this.party[0].xp=0;this.party[0].hpNow=this.party[0].hp;this.battleText.setText(this.wild.name+' calmed down! '+this.party[0].name+' levelled up!');}else this.battleText.setText(this.wild.name+' calmed down. +10 XP!');if(this.guildBattle){this.badges=Math.min(3,this.badges+1)}this.time.delayedCall(1100,()=>this.endBattle(true));}else this.enemyTurn();}
- battleQuiz(){const q=Phaser.Utils.Array.GetRandom(QUESTIONS);this.quizQuestion=q;this.quizLayer=this.add.container(0,0).setScrollFactor(0).setDepth(2200);this.quizLayer.add(this.add.rectangle(W/2,H/2,640,340,0x183b33).setStrokeStyle(3,0xf5cf67));this.quizLayer.add(this.add.text(W/2,155,'CULINARY CHALLENGE',{fontFamily:'monospace',fontSize:'18px',color:'#f5cf67'}).setOrigin(.5));this.quizLayer.add(this.add.text(W/2,205,q.q,{fontFamily:'monospace',fontSize:'14px',color:'#fff2c7',align:'center',wordWrap:{width:570}}).setOrigin(.5));q.a.forEach((a,i)=>{const y=270+i*50;const b=this.add.rectangle(W/2,y,540,38,0x386b53).setStrokeStyle(1,0x8fb59a).setInteractive({useHandCursor:true});const t=this.add.text(W/2,y,(i+1)+'. '+a,{fontFamily:'monospace',fontSize:'12px',color:'#fff5d5'}).setOrigin(.5);b.on('pointerdown',()=>{if(i===q.correct){this.badges=Math.min(3,this.badges+1);this.party[0].xp+=5;this.battleText.setText('Correct! '+q.why);sfx(900)}else{this.battleText.setText('Not quite. '+q.why);sfx(220)}this.quizLayer.destroy();this.quizLayer=null;this.updateHUD();this.time.delayedCall(1700,()=>{if(this.mode==='battle')this.enemyTurn()})});this.quizLayer.add([b,t]);});}
- enemyTurn(){if(this.mode!=='battle')return;this.battleBusy=true;this.time.delayedCall(650,()=>{const dmg=Phaser.Math.Between(3,7);this.party[0].hpNow=Math.max(0,this.party[0].hpNow-dmg);this.battleText.setText(this.wild.name+' used '+this.wild.move+'! '+this.party[0].name+' lost '+dmg+' HP.');this.refreshBattleHP();this.battleBusy=false;sfx(300);if(this.party[0].hpNow<=0){this.battleText.setText(this.party[0].name+' needs a rest. You retreat safely to the village.');this.time.delayedCall(1300,()=>this.endBattle(false));}})}
- refreshBattleHP(){if(this.battlePanel){this.battlePanel.list.forEach(o=>{if(o.type==='Text'&&o.text&&o.text.startsWith('HP  ')){/* refreshed by rebuilding labels below */}});const texts=this.battlePanel.list.filter(o=>o.type==='Text');const hpTexts=texts.filter(o=>o.text.startsWith('HP  '));if(hpTexts[0])hpTexts[0].setText('HP  '+this.wild.hpNow+' / '+this.wild.hp);if(hpTexts[1])hpTexts[1].setText('HP  '+this.party[0].hpNow+' / '+this.party[0].hp);}}
- closeBattle(){this.endBattle(false)}endBattle(won){if(this.quizLayer){this.quizLayer.destroy();this.quizLayer=null}if(this.battlePanel){this.battlePanel.destroy();this.battlePanel=null}this.mode='explore';this.moveLock=false;this.party.forEach(p=>{if(p.hpNow<=0)p.hpNow=Math.max(1,Math.ceil(p.hp*.45))});this.updateHUD();if(won){this.say(this.guildBattle?'Guild Trial complete! Guild Marks: '+this.badges+'/3.':'Adventure complete! Your companion gained experience.')}else this.say('You returned safely. Rest up and keep exploring.');}
+ startBattle(guild){
+  if(this.mode!=='explore'||!this.party.length){if(!this.party.length)this.say('Find Chef Mira and choose a starter companion first.');return}
+  this.mode='battle';this.moveLock=true;this.battleBusy=false;this.battleObjects=[];this.quizObjects=[];
+  const base=Phaser.Math.Between(0,SPIRITS.length-1);
+  this.wild={...SPIRITS[base],hpNow:SPIRITS[base].hp,level:Phaser.Math.Between(2,4)};this.guildBattle=guild;
+  this.battlePanel=this.add.container(0,0).setScrollFactor(0).setDepth(2000);
+  this.battlePanel.add(this.add.rectangle(W/2,H/2,W,H,0x0b211e,.97));
+  this.battlePanel.add(this.add.rectangle(180,85,330,95,0x244f40).setStrokeStyle(2,0x9dbb86));
+  this.wildNameText=this.add.text(35,48,'WILD '+this.wild.name.toUpperCase()+'  Lv.'+this.wild.level,{fontFamily:'monospace',fontSize:'15px',color:'#fff2c7'});
+  this.wildHpText=this.add.text(55,80,'HP  '+this.wild.hpNow+' / '+this.wild.hp,{fontFamily:'monospace',fontSize:'13px',color:'#b9f39b'});
+  this.battlePanel.add([this.wildNameText,this.wildHpText]);
+  this.battlePanel.add(this.add.text(590,255,this.wild.emoji,{fontSize:'100px'}).setOrigin(.5));
+  this.battlePanel.add(this.add.text(220,315,this.party[0].emoji,{fontSize:'86px'}).setOrigin(.5));
+  this.battlePanel.add(this.add.rectangle(210,375,300,72,0x21463d).setStrokeStyle(2,0x9dbb86));
+  this.partyNameText=this.add.text(75,352,this.party[0].name+'  Lv.'+this.party[0].level,{fontFamily:'monospace',fontSize:'15px',color:'#fff2c7'});
+  this.partyHpText=this.add.text(75,382,'HP  '+this.party[0].hpNow+' / '+this.party[0].hp,{fontFamily:'monospace',fontSize:'13px',color:'#b9f39b'});
+  this.battlePanel.add([this.partyNameText,this.partyHpText]);
+  this.battlePanel.add(this.add.rectangle(W/2,480,750,126,0x183b33).setStrokeStyle(2,0x638c70));
+  this.battlePanel.add(this.add.text(40,425,guild?'GUILD TRIAL: Show your culinary knowledge!':'A wild Spice Spirit appeared!',{fontFamily:'monospace',fontSize:'14px',color:'#fff2c7'}));
+  // Keep controls as scene-level objects instead of nested container children; this makes pointer hit-testing reliable.
+  this.addBattleButton(150,475,'1  SPIRIT MOVE',()=>this.battleAction('move'));
+  this.addBattleButton(365,475,'2  SPICE SEED ('+this.bag+')',()=>this.battleAction('seed'));
+  this.addBattleButton(585,475,'3  CULINARY QUIZ',()=>this.battleAction('quiz'));
+  this.battleText=this.add.text(40,535,'Choose an action.  (Keyboard: 1 / 2 / 3)',{fontFamily:'monospace',fontSize:'12px',color:'#c7dec1'}).setScrollFactor(0).setDepth(2110);
+  sfx(520);
+ }
+ addBattleButton(x,y,label,fn){
+  const r=this.add.rectangle(x,y,190,42,0x386b53).setStrokeStyle(2,0xc4dba1).setScrollFactor(0).setDepth(2100).setInteractive({useHandCursor:true});
+  const t=this.add.text(x,y,label,{fontFamily:'monospace',fontSize:'11px',color:'#fff5d5',align:'center'}).setOrigin(.5).setScrollFactor(0).setDepth(2101);
+  r.on('pointerdown',()=>{if(this.mode==='battle'&&!this.quizLayer)fn()});this.battleObjects.push(r,t);
+ }
+ battleAction(kind){
+  if(this.mode!=='battle'||this.battleBusy||this.quizLayer)return;
+  if(kind==='quiz'){this.battleQuiz();return}
+  if(kind==='seed'){
+   if(this.bag<=0){this.battleText.setText('No Spice Seeds left! Visit Ranger Nasi for more.');return}
+   this.bag--;this.updateHUD();const chance=this.wild.hpNow<=this.wild.hp*.35?.82:.35;
+   if(Math.random()<chance){
+    const captured={...this.wild,hpNow:this.wild.hp,level:this.wild.level,xp:0};this.party.push(captured);this.battleBusy=true;
+    this.battleText.setText('Success! '+this.wild.name+' joined your party!');this.updateHUD();sfx(880);
+    this.time.delayedCall(1100,()=>this.endBattle(true));
+   }else{this.battleText.setText(this.wild.name+' broke free! Lower its HP and try again.');this.enemyTurn()}
+   return;
+  }
+  const dmg=Phaser.Math.Between(7,12)+this.party[0].level;this.wild.hpNow=Math.max(0,this.wild.hpNow-dmg);
+  this.battleText.setText(this.party[0].move+'! '+this.wild.name+' lost '+dmg+' HP.');this.refreshBattleHP();sfx(760);
+  if(this.wild.hpNow<=0){
+   this.party[0].xp+=10;if(this.party[0].xp>=20){this.party[0].level++;this.party[0].xp=0;this.party[0].hpNow=this.party[0].hp;this.battleText.setText(this.wild.name+' calmed down! '+this.party[0].name+' levelled up!')}
+   else this.battleText.setText(this.wild.name+' calmed down. +10 XP!');
+   if(this.guildBattle)this.badges=Math.min(3,this.badges+1);this.battleBusy=true;this.updateHUD();this.time.delayedCall(1100,()=>this.endBattle(true));
+  }else this.enemyTurn();
+ }
+ battleQuiz(){
+  if(this.mode!=='battle'||this.battleBusy||this.quizLayer)return;
+  const q=Phaser.Utils.Array.GetRandom(QUESTIONS);this.quizQuestion=q;this.quizLayer=this.add.container(0,0).setScrollFactor(0).setDepth(2200);this.quizObjects=[];
+  const panel=this.add.rectangle(W/2,H/2,680,350,0x183b33).setStrokeStyle(3,0xf5cf67).setScrollFactor(0).setDepth(2200);
+  const title=this.add.text(W/2,145,'CULINARY CHALLENGE',{fontFamily:'monospace',fontSize:'18px',color:'#f5cf67'}).setOrigin(.5).setScrollFactor(0).setDepth(2202);
+  const question=this.add.text(W/2,198,q.q,{fontFamily:'monospace',fontSize:'14px',color:'#fff2c7',align:'center',wordWrap:{width:590}}).setOrigin(.5).setScrollFactor(0).setDepth(2202);
+  this.quizLayer.add([panel,title,question]);
+  q.a.forEach((a,i)=>{
+   const y=270+i*50;const b=this.add.rectangle(W/2,y,560,38,0x386b53).setStrokeStyle(1,0x8fb59a).setScrollFactor(0).setDepth(2203).setInteractive({useHandCursor:true});
+   const t=this.add.text(W/2,y,(i+1)+'. '+a,{fontFamily:'monospace',fontSize:'12px',color:'#fff5d5',align:'center',wordWrap:{width:520}}).setOrigin(.5).setScrollFactor(0).setDepth(2204);
+   b.on('pointerdown',()=>this.answerQuiz(i));this.quizObjects.push(b,t);
+  });
+ }
+ answerQuiz(i){
+  if(!this.quizLayer||this.mode!=='battle')return;const q=this.quizQuestion;
+  if(i===q.correct){this.badges=Math.min(3,this.badges+1);this.party[0].xp+=5;this.battleText.setText('Correct! '+q.why);sfx(900)}
+  else{this.battleText.setText('Not quite. '+q.why);sfx(220)}
+  this.quizObjects.forEach(o=>o.destroy());this.quizObjects=[];this.quizLayer.destroy();this.quizLayer=null;this.updateHUD();this.battleBusy=true;
+  this.time.delayedCall(1700,()=>{this.battleBusy=false;if(this.mode==='battle')this.enemyTurn()});
+ }
+ enemyTurn(){if(this.mode!=='battle'||this.battleBusy||this.quizLayer)return;this.battleBusy=true;this.time.delayedCall(650,()=>{if(this.mode!=='battle')return;const dmg=Phaser.Math.Between(3,7);this.party[0].hpNow=Math.max(0,this.party[0].hpNow-dmg);this.battleText.setText(this.wild.name+' used '+this.wild.move+'! '+this.party[0].name+' lost '+dmg+' HP.');this.refreshBattleHP();this.battleBusy=false;sfx(300);if(this.party[0].hpNow<=0){this.battleBusy=true;this.battleText.setText(this.party[0].name+' needs a rest. You retreat safely to the village.');this.time.delayedCall(1300,()=>this.endBattle(false));}})}
+ refreshBattleHP(){if(this.wildHpText)this.wildHpText.setText('HP  '+this.wild.hpNow+' / '+this.wild.hp);if(this.partyHpText)this.partyHpText.setText('HP  '+this.party[0].hpNow+' / '+this.party[0].hp);}
+ closeBattle(){this.endBattle(false)}
+ endBattle(won){
+  if(this.quizObjects)this.quizObjects.forEach(o=>o.destroy());this.quizObjects=[];
+  if(this.quizLayer){this.quizLayer.destroy();this.quizLayer=null}if(this.battleObjects)this.battleObjects.forEach(o=>o.destroy());this.battleObjects=[];
+  if(this.battleText){this.battleText.destroy();this.battleText=null}if(this.battlePanel){this.battlePanel.destroy();this.battlePanel=null}
+  this.mode='explore';this.moveLock=false;this.battleBusy=false;this.quizQuestion=null;
+  this.party.forEach(p=>{if(p.hpNow<=0)p.hpNow=Math.max(1,Math.ceil(p.hp*.45))});this.updateHUD();
+  if(won){this.say(this.guildBattle?'Guild Trial complete! Guild Marks: '+this.badges+'/3.':'Adventure complete! Your companion gained experience.')}else this.say('You returned safely. Rest up and keep exploring.');
+ }
  showPanel(title,body,buttonLabel,action,extra=[]){this.mode='panel';this.panelAction=action;this.msgPanel.removeAll(true);this.msgPanel.setVisible(true);this.msgPanel.add(this.add.rectangle(W/2,H/2,680,310,0x102c27,.98).setStrokeStyle(3,0xf5cf67));this.msgPanel.add(this.add.text(W/2,H/2-122,title,{fontFamily:'monospace',fontSize:'20px',color:'#f5cf67',align:'center'}).setOrigin(.5));this.msgPanel.add(this.add.text(W/2,H/2-58,body,{fontFamily:'monospace',fontSize:'13px',color:'#f6f5df',align:'center',wordWrap:{width:600},lineSpacing:7}).setOrigin(.5));this.addPanelButton(W/2,H/2+105,buttonLabel,action);extra.forEach((x,i)=>this.addPanelButton(W/2+(i===0?-155:155),H/2+145,x.label,x.fn));}
  addPanelButton(x,y,label,fn){const b=this.add.rectangle(x,y,230,37,0x386b53).setStrokeStyle(2,0x9fbe8d).setInteractive({useHandCursor:true});const t=this.add.text(x,y,label,{fontFamily:'monospace',fontSize:'12px',color:'#fff5d5'}).setOrigin(.5);b.on('pointerdown',fn);this.msgPanel.add([b,t]);}
  closePanel(){this.msgPanel.setVisible(false);this.msgPanel.removeAll(true);this.mode='explore';this.panelAction=null;}
